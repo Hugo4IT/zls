@@ -2467,6 +2467,20 @@ fn resolveTypeOfNodeUncached(analyser: *Analyser, options: ResolveOptions) Error
 
                     return Type.fromIP(analyser, .type_type, vector_ty_ip_index);
                 },
+                .Tuple => {
+                    if (params.len != 1) return null;
+
+                    // This should work because the @Tuple call will get comptimed by Zig
+                    const array_init_info = tree.fullArrayInit(&buffer, params[0]) orelse return null;
+
+                    const elem_ty_slice = try analyser.arena.alloc(Type, array_init_info.ast.elements.len);
+
+                    for (elem_ty_slice, array_init_info.ast.elements) |*elem_ty, element| {
+                        elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    }
+
+                    return try Type.createTupleType(analyser, elem_ty_slice);
+                },
                 else => {
                     const data = version_data.builtins.get(call_name) orelse return null;
                     return analyser.resolveLangrefType(data.return_type);
