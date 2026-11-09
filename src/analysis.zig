@@ -2471,15 +2471,299 @@ fn resolveTypeOfNodeUncached(analyser: *Analyser, options: ResolveOptions) Error
                     if (params.len != 1) return null;
 
                     // This should work because the @Tuple call will get comptimed by Zig
-                    const array_init_info = tree.fullArrayInit(&buffer, params[0]) orelse return null;
+                    // analyser.ip.get(.{
+                    //     .slice = .{
+                    //         .ty = null
+                    //     },
+                    // });
 
-                    const elem_ty_slice = try analyser.arena.alloc(Type, array_init_info.ast.elements.len);
+                    // var tmpbuffer: [64]u8 = undefined;
+                    // const io = std.Options.debug_io;
+                    // const stderr = try io.lockStderr(&tmpbuffer, .escape_codes);
+                    // defer io.unlockStderr();
+                    // tree.render(analyser.gpa, &stderr.file_writer.interface, .{}) catch unreachable;
+                    // std.debug.print("\n", .{});
 
-                    for (elem_ty_slice, array_init_info.ast.elements) |*elem_ty, element| {
-                        elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    // pub fn resolveStructInitType(
+                    //     analyser: *Analyser,
+                    //     handle: *DocumentStore.Handle,
+                    //     source_index: usize,
+                    // ) Error!?Type {
+                    //     const tracy_zone = tracy.trace(@src());
+                    //     defer tracy_zone.end();
+
+                    //     const tree = &handle.tree;
+                    //     const nodes = try ast.nodesOverlappingIndex(analyser.arena, tree, source_index);
+                    //     if (nodes.len == 0) return null;
+                    //     var ty = try analyser.resolveExpressionType(handle, nodes[0], nodes[1..]) orelse return null;
+                    //     while (true) {
+                    //         const unwrapped =
+                    //             try analyser.resolveUnwrapErrorUnionType(ty, .payload) orelse
+                    //             try analyser.resolveOptionalUnwrap(ty) orelse
+                    //             break;
+                    //         ty = unwrapped;
+                    //     }
+                    //     return ty;
+                    // }
+
+                    switch (tree.nodeTag(params[0])) {
+                        .address_of => {
+                            const overlapping = try ast.nodesOverlappingIndex(analyser.arena, tree, tree.tokenStart(tree.firstToken(params[0])));
+
+                            std.debug.print("{any}\n", .{overlapping});
+
+                            const expr_ty = try analyser.resolveExpressionType(handle, overlapping[0], overlapping[1..]) orelse return null;
+
+                            std.debug.print("{}\n", .{expr_ty});
+
+                            switch (expr_ty.data) {
+                                .pointer => |info| switch (info.size) {
+                                    .slice => {
+                                        std.debug.print("Found slice\n", .{});
+                                    },
+                                    else => |other| {
+                                        std.debug.print("SKIP NON-slice '{}'\n", .{other});
+                                        return null;
+                                    },
+                                },
+                                .ip_index => |payload| switch (analyser.ip.indexToKey(payload.type)) {
+                                    .pointer_type => |pointer_info| switch (pointer_info.flags.size) {
+                                        .slice => {
+                                            const array_init_info = tree.fullArrayInit(&buffer, tree.nodeData(params[0]).node) orelse return null;
+
+                                            const elem_ty_slice = try analyser.arena.alloc(Type, array_init_info.ast.elements.len);
+
+                                            for (elem_ty_slice, array_init_info.ast.elements) |*elem_ty, element| {
+                                                elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                                            }
+
+                                            return try Type.createTupleType(analyser, elem_ty_slice);
+                                        },
+                                        else => {
+                                            std.debug.print("SKIP non-slice 2\\n", .{});
+                                            return null;
+                                        },
+                                    },
+                                    else => {
+                                        std.debug.print("SKIP non-pointer_type\\n", .{});
+                                        return null;
+                                    },
+                                },
+                                else => |other| {
+                                    std.debug.print("SKIP invalid ty data '{}'\n", .{other});
+                                    return null;
+                                },
+                            }
+                        },
+                        .identifier => {
+                            const overlapping = try ast.nodesOverlappingIndex(analyser.arena, tree, tree.tokenStart(tree.firstToken(params[0])));
+
+                            std.debug.print("{any}\n", .{overlapping});
+
+                            const expr_ty = try analyser.resolveExpressionType(handle, overlapping[0], overlapping[1..]) orelse return null;
+
+                            std.debug.print("{}\n", .{expr_ty});
+
+                            std.debug.print("SKIP IDENTIFIER\n", .{});
+
+                            switch (expr_ty.data) {
+                                .pointer => |info| switch (info.size) {
+                                    .slice => {
+                                        std.debug.print("Found slice\n", .{});
+                                    },
+                                    else => |other| {
+                                        std.debug.print("SKIP NON-slice '{}'\n", .{other});
+                                        return null;
+                                    },
+                                },
+                                .ip_index => |payload| switch (analyser.ip.indexToKey(payload.type)) {
+                                    .pointer_type => |pointer_info| switch (pointer_info.flags.size) {
+                                        .slice => {
+                                            std.debug.print("IT IS A SLICE: {}\n", .{tree.nodeData(overlapping[1]).opt_node_and_opt_node});
+                                            // std.zig.AstGen.generate(gpa: Allocator, tree: Ast)
+                                            for (overlapping) |o| {
+                                                // const dat = tree.nodeData(o);
+                                                std.debug.print("{t}\n", .{tree.nodeTag(o)});
+                                                // if (@backingInt(dat) == @backingInt(.node)) {
+                                                //     std.debug.print("{}\n", .{tree.fullArrayInit(&buffer, dat.node) orelse continue});
+                                                // }
+                                            }
+                                            const array_init_info = tree.fullArrayInit(&buffer, tree.nodeData(params[0]).node) orelse return null;
+
+                                            const elem_ty_slice = try analyser.arena.alloc(Type, array_init_info.ast.elements.len);
+
+                                            for (elem_ty_slice, array_init_info.ast.elements) |*elem_ty, element| {
+                                                elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                                            }
+
+                                            return try Type.createTupleType(analyser, elem_ty_slice);
+                                        },
+                                        else => {
+                                            std.debug.print("SKIP non-slice 2\\n", .{});
+                                            return null;
+                                        },
+                                    },
+                                    else => {
+                                        std.debug.print("SKIP non-pointer_type\\n", .{});
+                                        return null;
+                                    },
+                                },
+                                else => |other| {
+                                    std.debug.print("SKIP invalid ty data '{}'\n", .{other});
+                                    return null;
+                                },
+                            }
+
+                            return null;
+                        },
+                        else => |other| {
+                            std.debug.print("SKIP NON-address_of '{t}'\n", .{other});
+                            return null;
+                        },
                     }
 
-                    return try Type.createTupleType(analyser, elem_ty_slice);
+                    return null;
+
+                    // const ty = try analyser.resolveTypeOfNodeInternal(.of(params[0], handle)) orelse return null;
+
+                    // if (ty.data != .pointer) {
+                    //     std.debug.print("SKIP NON-POINTER: {}\n", .{ty.data});
+                    //     return null;
+                    // }
+
+                    // const element_ty = ty.data.pointer.elem_ty.*;
+
+                    // if (element_ty.data != .array) {
+                    //     std.debug.print("SKIP NON-ARRAY\n", .{});
+                    //     return null;
+                    // }
+
+                    // std.debug.print("{}\n", .{element_ty.data.array.elem_ty.*});
+
+                    // std.debug.print("{}\n", .{tree.nodeTag(params[0])});
+                    // const ptr_data = tree.nodeData(params[0]).node;
+                    // std.debug.print("{}\n", .{tree.nodeTag(ptr_data)});
+                    // std.debug.print("{}\n", .{tree.nodeData(ptr_data)});
+
+                    // std.debug.print("{}\n", .{});
+
+                    // const coerced = try analyser.resolveCoercedIPValue(ty.data.pointer.elem_ty.ipIndex().?, .of(params[0], handle)) orelse return null;
+                    // analyser.resolveInstanceOfNode(.of(coerced, handle));
+                    // analyser.ip.print(index: Index, writer: *Writer, options: FormatOptions)
+
+                    // std.debug.print("{}\n", .{analyser.ip.isIndexable(ty.?.ipIndex().?)});
+                    // analyser.coerceIP();
+                    // std.debug.print("{t}\n", .{analyser.resolveCoercedIPValue((null, .of(params[0], handle))});
+
+                    // const array_init_info = tree.fullArrayInit(&buffer, ptr_data) orelse return null;
+
+                    // const elem_ty_slice = try analyser.arena.alloc(Type, array_init_info.ast.elements.len);
+
+                    // for (elem_ty_slice, array_init_info.ast.elements) |*elem_ty, element| {
+                    //     elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    // }
+
+                    // return try Type.createTupleType(analyser, elem_ty_slice);
+                },
+                .Struct => {
+                    // std.debug.print("{}\n\n\n\n\n", .{analyser.store.});
+
+                    // .container => |info| return .{
+                    //     .container = .{
+                    //         .scope_handle = info.scope_handle,
+                    //         .bound_params = blk: {
+                    //             var new_params: TokenToTypeMap = .empty;
+                    //             try new_params.ensureTotalCapacity(analyser.arena, info.bound_params.count());
+                    //             for (info.bound_params.keys(), info.bound_params.values()) |k, v| {
+                    //                 const t = try analyser.resolveGenericTypeInternal(v, bound_params, visiting);
+                    //                 new_params.putAssumeCapacity(k, t);
+                    //             }
+                    //             break :blk new_params;
+                    //         },
+                    //     },
+                    // },
+
+                    // pub const Container = struct {
+                    //     scope_handle: ScopeWithHandle,
+                    //     bound_params: TokenToTypeMap,
+
+                    //     pub fn root(handle: *DocumentStore.Handle) Container {
+                    //         return .{
+                    //             .scope_handle = .{ .handle = handle, .scope = .root },
+                    //             .bound_params = .empty,
+                    //         };
+                    //     }
+                    // };
+
+                    // if (params.len != 5) return null;
+
+                    // const doc_scope = try node_handle.handle.getDocumentScope();
+                    // doc_scope.
+
+                    // // This should work because the @Tuple call will get comptimed by Zig
+                    // // params[0]
+                    // // const backing_int = analyser.resolveOptionalIPValue(params[1], handle);
+                    // const array_init_info_field_names = tree.fullArrayInit(&buffer, params[2]) orelse return null;
+                    // _ = array_init_info_field_names; // autofix
+                    // const array_init_info_field_types = tree.fullArrayInit(&buffer, params[3]) orelse return null;
+                    // _ = array_init_info_field_types; // autofix
+                    // const array_init_info_field_attrs = tree.fullArrayInit(&buffer, params[4]) orelse return null;
+                    // _ = array_init_info_field_attrs; // autofix
+
+                    // analyser.ip.createStruct(.{
+                    // });
+
+                    // const field_names = try analyser.arena.alloc(Type, array_init_info_field_names.ast.elements.len);
+
+                    // for (field_names, array_init_info_field_names.ast.elements) |*elem_ty, element| {
+                    //     elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    // }
+
+                    // const field_types = try analyser.arena.alloc(Type, array_init_info_field_types.ast.elements.len);
+
+                    // for (field_types, array_init_info_field_types.ast.elements) |*elem_ty, element| {
+                    //     elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    // }
+
+                    // const field_attrs = try analyser.arena.alloc(Type, array_init_info_field_attrs.ast.elements.len);
+
+                    // for (field_attrs, array_init_info_field_attrs.ast.elements) |*elem_ty, element| {
+                    //     elem_ty.* = try analyser.resolveTypeOfNodeInternal(.of(element, handle)) orelse return null;
+                    // }
+
+                    // std.debug.print("names {any}\n", .{field_names});
+                    // std.debug.print("types {any}\n", .{field_types});
+                    // std.debug.print("attrs {any}\n", .{field_attrs});
+
+                    // var tmpbuffer: [64]u8 = undefined;
+                    // const io = std.Options.debug_io;
+                    // const stderr = try io.lockStderr(&tmpbuffer, .escape_codes);
+                    // defer io.unlockStderr();
+                    // tree.render(analyser.gpa, &stderr.file_writer.interface, .{}) catch unreachable;
+                    // std.debug.print("\n", .{});
+
+                    // std.debug.print("attrs {any}\n", .{});
+
+                    // .enum_literal
+                    // .identifier
+                    // .address_of
+                    // .address_of
+                    // .address_of
+
+                    // const field_names_type = try analyser.resolveTypeOfNode(.of(params[2], handle)) orelse return null;
+                    // const field_names_deref = try analyser.resolveDerefBinding(field_names_type) orelse null;
+                    // tree.
+                    // analyser.resolveStringLiteral(options: ResolveOptions)
+
+                    // std.debug.print("{}\n", .{tree.nodeTag(params[0])});
+                    // std.debug.print("{}\n", .{tree.nodeTag(params[1])});
+                    // std.debug.print("{}\n", .{field_names_deref.?.type});
+                    // std.debug.print("{}\n", .{tree.nodeTag(params[3])});
+                    // std.debug.print("{}\n", .{tree.nodeTag(params[4])});
+
+                    return analyser.resolveLangrefType("type");
+
+                    // return try tree.contai
                 },
                 else => {
                     const data = version_data.builtins.get(call_name) orelse return null;
@@ -6789,6 +7073,8 @@ pub fn resolveExpressionTypeFromAncestors(
                     return typ;
                 }
             }
+
+            // BOOKMARK_EXPR_ADDRESS_OF
 
             switch (expr_ty.data) {
                 .pointer => |info| switch (info.size) {

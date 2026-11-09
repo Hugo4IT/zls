@@ -213,6 +213,20 @@ const tag_name = @tagName(type_enum_literal);
 const error_name = @errorName(error.Foo);
 //    ^^^^^^^^^^ ([:0]const u8)()
 
+const Tuple = @Tuple(&.{ i32, i64 });
+//    ^^^^^ (type)()
+
+const tuple_instance: Tuple = .{ 2, 4 };
+const tuple_member: i32 = tuple_instance.@"0";
+
+const tuple_types: []const type = &.{ i64, i32 };
+
+const DynamicTuple = @Tuple(tuple_types);
+//    ^^^^^^^^^^^^ (type)()
+
+const dyn_tuple_instance: DynamicTuple = .{ 2, 4 };
+const dyn_tuple_member: i64 = tuple_instance.@"0";
+
 comptime {
     // Use @compileLog to verify the expected type with the compiler
     // @compileLog(vector_builtin_13);
