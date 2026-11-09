@@ -2580,7 +2580,8 @@ fn resolveTypeOfNodeUncached(analyser: *Analyser, options: ResolveOptions) Error
                                     .pointer_type => |pointer_info| switch (pointer_info.flags.size) {
                                         .slice => {
                                             std.debug.print("IT IS A SLICE: {}\n", .{tree.nodeData(overlapping[1]).opt_node_and_opt_node});
-                                            // std.zig.AstGen.generate(gpa: Allocator, tree: Ast)
+                                            // const zir = try std.zig.AstGen.generate(analyser.gpa, tree.*);
+                                            // zir.typeDecls(type_decl: Index)
                                             for (overlapping) |o| {
                                                 // const dat = tree.nodeData(o);
                                                 std.debug.print("{t}\n", .{tree.nodeTag(o)});
